@@ -1,0 +1,24 @@
+{
+  "name": "notion-startup-investment-tracker-alerts",
+  "version": "1.0.0",
+  "description": "Automated daily email reports for angel investment tracking",
+  "main": ".github/scripts/generate-report.js",
+  "scripts": {
+    "test": "node .github/scripts/generate-report.js --dry-run",
+    "report": "node .github/scripts/generate-report.js"
+  },
+  "keywords": [
+    "notion",
+    "investment",
+    "tracking",
+    "email",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@notionhq/client": "^2.2.14",
+    "resend": "^2.0.0",
+    "dotenv": "^16.3.1"
+  }
+}
