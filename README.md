@@ -47,7 +47,68 @@ Your Notion database should include these columns:
 - Modify `.github/scripts/generate-report.js` for custom formatting
 - Update email template in `.github/scripts/email-template.html`
 
-## Usage
+## Local Testing
+
+### Quick Start
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Set up your environment:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
+
+3. **Test with sample data (no API keys needed):**
+   ```bash
+   npm run test:sample
+   ```
+
+### Testing Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm test` | Run with real data in dry-run mode (no email sent) |
+| `npm run test:sample` | Test with sample data and preview in browser |
+| `npm run test:validate` | Validate your configuration |
+| `npm run test:preview` | Generate report and preview in browser |
+| `npm run test:verbose` | Run with detailed logging |
+| `npm run test:local` | Run complete test with real data and send email |
+
+### Testing Options
+
+Run `node test-local.js --help` for all options:
+
+- `--dry-run` - Generate report without sending email
+- `--sample` - Use sample data instead of Notion API
+- `--preview` - Open HTML report in browser
+- `--save-html` - Save report to `report.html`
+- `--validate` - Check configuration only
+- `--verbose` - Show detailed logging
+
+### Examples
+
+```bash
+# First time setup - validate configuration
+npm run test:validate
+
+# Test with sample data (no API needed)
+npm run test:sample
+
+# Test with real Notion data, don't send email
+npm test
+
+# Full test with real data and email
+npm run test:local
+
+# Debug issues with verbose logging
+npm run test:verbose
+```
+
+## Production Usage
 
 The workflow runs automatically every day at 8 AM EST. You can also trigger it manually from the Actions tab.
 

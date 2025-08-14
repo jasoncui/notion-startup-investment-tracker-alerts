@@ -316,5 +316,16 @@ async function main() {
   }
 }
 
-// Run the script
-main();
+// Export functions for testing
+module.exports = {
+  fetchInvestments,
+  categorizeInvestments,
+  generateEmailHTML,
+  sendEmail,
+  main
+};
+
+// Run the script if called directly
+if (require.main === module) {
+  main();
+}

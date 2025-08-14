@@ -4,8 +4,14 @@
   "description": "Automated daily email reports for angel investment tracking",
   "main": ".github/scripts/generate-report.js",
   "scripts": {
-    "test": "node .github/scripts/generate-report.js --dry-run",
-    "report": "node .github/scripts/generate-report.js"
+    "test": "node test-local.js --dry-run",
+    "test:local": "node test-local.js",
+    "test:sample": "node test-local.js --sample --preview",
+    "test:validate": "node test-local.js --validate",
+    "test:preview": "node test-local.js --dry-run --preview --save-html",
+    "test:verbose": "node test-local.js --dry-run --verbose",
+    "report": "node .github/scripts/generate-report.js",
+    "report:dry": "node .github/scripts/generate-report.js --dry-run"
   },
   "keywords": [
     "notion",
