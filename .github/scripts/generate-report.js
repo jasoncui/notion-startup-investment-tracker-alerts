@@ -9,6 +9,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // Configuration
 const DATABASE_ID = process.env.NOTION_DATABASE_ID;
 const EMAIL_TO = process.env.REPORT_EMAIL_TO;
+const EMAIL_FROM = process.env.REPORT_EMAIL_FROM || 'Investment Tracker <onboarding@resend.dev>';
 const DRY_RUN = process.argv.includes('--dry-run');
 
 // Date helpers
@@ -276,7 +277,7 @@ async function sendEmail(html, categorized) {
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'Investment Tracker <onboarding@resend.dev>',
+      from: EMAIL_FROM,
       to: [EMAIL_TO],
       subject: subject,
       html: html,

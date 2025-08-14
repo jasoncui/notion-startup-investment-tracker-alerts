@@ -40,6 +40,7 @@ Your Notion database should include these columns:
    - `NOTION_DATABASE_ID`
    - `RESEND_API_KEY`
    - `REPORT_EMAIL_TO`
+   - `REPORT_EMAIL_FROM` (optional - your verified sender email like "Portfolio <alerts@yourdomain.com>")
 
 ### 4. Customization
 

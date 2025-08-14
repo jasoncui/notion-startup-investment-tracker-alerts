@@ -29,6 +29,7 @@ jobs:
         NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
         RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         REPORT_EMAIL_TO: ${{ secrets.REPORT_EMAIL_TO }}
+        REPORT_EMAIL_FROM: ${{ secrets.REPORT_EMAIL_FROM }}
       run: npm run report
     
     - name: Report status

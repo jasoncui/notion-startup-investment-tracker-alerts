@@ -85,6 +85,10 @@ function validateConfig() {
     REPORT_EMAIL_TO: process.env.REPORT_EMAIL_TO,
   };
   
+  const optional = {
+    REPORT_EMAIL_FROM: process.env.REPORT_EMAIL_FROM,
+  };
+  
   const missing = [];
   const configured = [];
   
@@ -111,6 +115,13 @@ function validateConfig() {
     }
   } else {
     log('All required environment variables are configured!', 'success');
+    
+    // Show optional config
+    if (optional.REPORT_EMAIL_FROM) {
+      log(`Using custom sender: ${optional.REPORT_EMAIL_FROM}`, 'info');
+    } else {
+      log('Using default sender: Investment Tracker <onboarding@resend.dev>', 'info');
+    }
   }
   
   return missing.length === 0;
