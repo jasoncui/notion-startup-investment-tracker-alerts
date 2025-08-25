@@ -29,9 +29,37 @@ async function fetchInvestments() {
   try {
     const response = await notion.databases.query({
       database_id: DATABASE_ID,
+      filter: {
+        and: [
+          {
+            property: 'Deal stage',
+            status: {
+              does_not_equal: 'On hold'
+            }
+          },
+          {
+            property: 'Deal stage',
+            status: {
+              does_not_equal: 'Complete'
+            }
+          },
+          {
+            property: 'Deal stage',
+            status: {
+              does_not_equal: 'Passed'
+            }
+          },
+          {
+            property: 'Deal stage',
+            status: {
+              does_not_equal: 'Invested'
+            }
+          }
+        ]
+      },
       sorts: [
         {
-          property: 'Next Action Date',
+          property: 'Next action date',
           direction: 'ascending',
         },
       ],
@@ -53,8 +81,8 @@ function categorizeInvestments(investments) {
   };
 
   investments.forEach(item => {
-    // Extract properties - adjust these based on your database schema
-    const nextActionDate = item.properties['Next Action Date']?.date?.start;
+    // Extract properties - adjusted to match your database schema
+    const nextActionDate = item.properties['Next action date']?.date?.start;
     
     if (!nextActionDate) return;
     
@@ -63,12 +91,13 @@ function categorizeInvestments(investments) {
     
     const investment = {
       id: item.id,
-      companyName: item.properties['Company Name']?.title?.[0]?.plain_text || 'Unknown',
+      companyName: item.properties['Name']?.title?.[0]?.plain_text || 'Unknown',
       nextActionDate: nextActionDate,
-      nextAction: item.properties['Next Action Description']?.rich_text?.[0]?.plain_text || 'No action specified',
-      amount: item.properties['Amount Invested']?.number || 0,
-      status: item.properties['Current Status']?.select?.name || 'Active',
+      nextAction: item.properties['Next action']?.rich_text?.[0]?.plain_text || 'No action specified',
+      amount: item.properties['Investment Amount']?.number || 0,
+      status: item.properties['Engagement status']?.status?.name || item.properties['Deal stage']?.status?.name || 'Active',
       notes: item.properties['Notes']?.rich_text?.[0]?.plain_text || '',
+      poc: item.properties['Primary POC']?.rich_text?.[0]?.plain_text || 'Not specified',
       url: item.url,
     };
 
@@ -96,12 +125,17 @@ function generateEmailHTML(categorized) {
   };
 
   const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
+    // Parse the date string as local date to avoid timezone offset issues
+    const [year, month, day] = dateStr.split('-');
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const daysSince = (dateStr) => {
-    const date = new Date(dateStr);
+    // Parse the date string as local date to avoid timezone offset issues
+    const [year, month, day] = dateStr.split('-');
+    const date = new Date(year, month - 1, day);
+    date.setHours(0, 0, 0, 0);
     const diff = today - date;
     return Math.floor(diff / (1000 * 60 * 60 * 24));
   };
@@ -137,7 +171,11 @@ function generateEmailHTML(categorized) {
   `;
 
   // Summary stats
-  const totalActive = categorized.all.filter(i => i.properties?.['Current Status']?.select?.name === 'Active').length;
+  const totalActive = categorized.all.filter(i => 
+    i.properties?.['Engagement status']?.status?.name === 'Active' ||
+    i.properties?.['Deal stage']?.status?.name === 'Active' ||
+    (!i.properties?.['Engagement status']?.status?.name && !i.properties?.['Deal stage']?.status?.name)
+  ).length;
   const actionItemsCount = categorized.overdue.length + categorized.dueToday.length;
   
   html += `
@@ -169,6 +207,7 @@ function generateEmailHTML(categorized) {
         <div class="item">
           <div class="company">${item.companyName} <span class="overdue">(${daysOverdue} days overdue)</span></div>
           <div class="action">📌 ${item.nextAction}</div>
+          <div style="color: #666; font-size: 14px; margin-top: 3px;">📞 Contact: ${item.poc} | 📅 Due: ${formatDate(item.nextActionDate)}</div>
           <div style="margin-top: 5px;">
             <a href="${item.url}" target="_blank">View in Notion →</a>
           </div>
@@ -187,6 +226,7 @@ function generateEmailHTML(categorized) {
         <div class="item">
           <div class="company">${item.companyName}</div>
           <div class="action">📌 ${item.nextAction}</div>
+          <div style="color: #666; font-size: 14px; margin-top: 3px;">📞 Contact: ${item.poc} | 📅 Due: Today</div>
           <div style="margin-top: 5px;">
             <a href="${item.url}" target="_blank">View in Notion →</a>
           </div>
@@ -203,8 +243,9 @@ function generateEmailHTML(categorized) {
     categorized.thisWeek.forEach(item => {
       html += `
         <div class="item">
-          <div class="company">${item.companyName} <span style="color: #7f8c8d;">(${formatDate(item.nextActionDate)})</span></div>
+          <div class="company">${item.companyName}</div>
           <div class="action">📌 ${item.nextAction}</div>
+          <div style="color: #666; font-size: 14px; margin-top: 3px;">📞 Contact: ${item.poc} | 📅 Due: ${formatDate(item.nextActionDate)}</div>
         </div>
       `;
     });
@@ -220,8 +261,9 @@ function generateEmailHTML(categorized) {
     categorized.thisMonth.slice(0, 5).forEach(item => {
       html += `
         <div class="item">
-          <div class="company">${item.companyName} <span style="color: #7f8c8d;">(${formatDate(item.nextActionDate)})</span></div>
+          <div class="company">${item.companyName}</div>
           <div class="action">📌 ${item.nextAction}</div>
+          <div style="color: #666; font-size: 14px; margin-top: 3px;">📞 Contact: ${item.poc} | 📅 Due: ${formatDate(item.nextActionDate)}</div>
         </div>
       `;
     });
