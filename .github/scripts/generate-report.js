@@ -95,7 +95,8 @@ function categorizeInvestments(investments) {
       nextActionDate: nextActionDate,
       nextAction: item.properties['Next action']?.rich_text?.[0]?.plain_text || 'No action specified',
       amount: item.properties['Investment Amount']?.number || 0,
-      status: item.properties['Engagement status']?.status?.name || item.properties['Deal stage']?.status?.name || 'Active',
+      dealStage: item.properties['Deal stage']?.status?.name || 'Not specified',
+      engagementStatus: item.properties['Engagement status']?.status?.name || 'Not specified',
       notes: item.properties['Notes']?.rich_text?.[0]?.plain_text || '',
       poc: item.properties['Primary POC']?.rich_text?.[0]?.plain_text || 'Not specified',
       url: item.url,
@@ -140,155 +141,401 @@ function generateEmailHTML(categorized) {
     return Math.floor(diff / (1000 * 60 * 60 * 24));
   };
 
+  // Define deal stage priority order (higher number = higher priority)
+  const dealStagePriority = {
+    'Closing': 6,
+    'Handshake': 5,
+    'In progress': 4,
+    'Not started': 3,
+    'On hold': 2,
+    'Passed': 1,
+    'Invested': 1,
+    'Complete': 1,
+    'Not specified': 0
+  };
+
+  // Sort function to prioritize by deal stage (descending), then by days overdue (descending)
+  const sortByDealStage = (a, b) => {
+    const priorityA = dealStagePriority[a.dealStage] || 0;
+    const priorityB = dealStagePriority[b.dealStage] || 0;
+    
+    if (priorityA !== priorityB) {
+      return priorityB - priorityA; // Higher priority first
+    }
+    
+    // If same deal stage, sort by days overdue (most overdue first)
+    const daysA = daysSince(a.nextActionDate);
+    const daysB = daysSince(b.nextActionDate);
+    return daysB - daysA;
+  };
+
+  // Apply sorting to each category
+  categorized.overdue.sort(sortByDealStage);
+  categorized.dueToday.sort(sortByDealStage);
+  categorized.thisWeek.sort(sortByDealStage);
+  categorized.thisMonth.sort(sortByDealStage);
+
+  // Function to convert deal stage to CSS class
+  const getDealStageClass = (dealStage) => {
+    return dealStage.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+  };
+
   let html = `
     <!DOCTYPE html>
     <html>
     <head>
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
-        h2 { color: #34495e; margin-top: 30px; }
-        .alert { background: #ffe5e5; border-left: 4px solid #ff4444; padding: 12px; margin: 15px 0; }
-        .warning { background: #fff3cd; border-left: 4px solid #ffb744; padding: 12px; margin: 15px 0; }
-        .info { background: #e8f4f8; border-left: 4px solid #3498db; padding: 12px; margin: 15px 0; }
-        .item { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px; }
-        .company { font-weight: bold; color: #2c3e50; }
-        .action { color: #666; }
-        .overdue { color: #ff4444; font-weight: bold; }
-        .stats { display: flex; justify-content: space-around; background: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }
-        .stat { text-align: center; }
-        .stat-value { font-size: 24px; font-weight: bold; color: #2c3e50; }
-        .stat-label { color: #7f8c8d; font-size: 12px; }
-        a { color: #3498db; text-decoration: none; }
-        a:hover { text-decoration: underline; }
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+          line-height: 1.5; 
+          color: #1a1a1a; 
+          background: #ffffff;
+          margin: 0;
+          padding: 20px;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background: white;
+        }
+        .header {
+          margin-bottom: 32px;
+        }
+        h1 { 
+          font-size: 28px;
+          font-weight: 700;
+          color: #1a1a1a;
+          margin: 0 0 8px 0;
+          line-height: 1.2;
+        }
+        .date {
+          font-size: 16px;
+          color: #6b7280;
+          margin: 0;
+          font-weight: 400;
+        }
+        .section {
+          margin-bottom: 32px;
+        }
+        .section-title {
+          font-size: 20px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin: 0 0 16px 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .count {
+          background: #f3f4f6;
+          color: #6b7280;
+          font-size: 14px;
+          font-weight: 500;
+          padding: 2px 8px;
+          border-radius: 12px;
+        }
+        .overdue-count {
+          background: #fef2f2;
+          color: #dc2626;
+        }
+        .today-count {
+          background: #fffbeb;
+          color: #d97706;
+        }
+        .company-item {
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 16px;
+          margin-bottom: 12px;
+          border-left: 4px solid #e5e7eb;
+        }
+        .company-item.closing {
+          border-left-color: #3b82f6;
+          background: #f8faff;
+        }
+        .company-item.handshake {
+          border-left-color: #3b82f6;
+          background: #f8faff;
+        }
+        .company-item.in-progress {
+          border-left-color: #f59e0b;
+          background: #fffbf0;
+        }
+        .company-item.not-started {
+          border-left-color: #6b7280;
+          background: #f9fafb;
+        }
+        .company-item.on-hold {
+          border-left-color: #92400e;
+          background: #fef3e2;
+        }
+        .company-item.passed {
+          border-left-color: #92400e;
+          background: #fef3e2;
+        }
+        .company-item.invested {
+          border-left-color: #10b981;
+          background: #f0fdf9;
+        }
+        .company-item.complete {
+          border-left-color: #10b981;
+          background: #f0fdf9;
+        }
+        .company-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 8px;
+        }
+        .company-name {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1a1a1a;
+          margin: 0;
+        }
+        .overdue-badge {
+          background: #fef2f2;
+          color: #dc2626;
+          font-size: 12px;
+          font-weight: 500;
+          padding: 2px 6px;
+          border-radius: 4px;
+          white-space: nowrap;
+        }
+        .action-text {
+          color: #4b5563;
+          font-size: 14px;
+          margin: 8px 0;
+          line-height: 1.4;
+        }
+        .meta-info {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          font-size: 13px;
+          color: #6b7280;
+          margin-top: 12px;
+        }
+        .meta-item {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          white-space: nowrap;
+        }
+        .meta-label {
+          font-weight: 500;
+          color: #4b5563;
+        }
+        @media (max-width: 600px) {
+          .container {
+            padding: 12px;
+          }
+          .company-item {
+            padding: 12px;
+          }
+          .company-header {
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-start;
+          }
+          .overdue-badge {
+            align-self: flex-start;
+          }
+          .meta-info {
+            gap: 8px;
+          }
+          .meta-item {
+            min-width: 0;
+            flex-shrink: 1;
+          }
+          .company-name {
+            font-size: 15px;
+          }
+          .action-text {
+            font-size: 13px;
+          }
+        }
+        @media (max-width: 480px) {
+          .meta-info {
+            flex-direction: column;
+            gap: 6px;
+            align-items: flex-start;
+          }
+          .meta-item {
+            width: 100%;
+            justify-content: flex-start;
+          }
+        }
+        .view-link {
+          color: #3b82f6;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 500;
+        }
+        .view-link:hover {
+          text-decoration: underline;
+        }
+        .empty-state {
+          text-align: center;
+          padding: 32px;
+          color: #6b7280;
+        }
+        .empty-state h3 {
+          color: #10b981;
+          margin: 0 0 8px 0;
+        }
       </style>
     </head>
     <body>
       <div class="container">
-        <h1>📊 Daily Investment Report</h1>
-        <p style="color: #7f8c8d;">Generated on ${today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <div class="header">
+          <h1>Daily Investment Report</h1>
+          <p class="date">${today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
   `;
 
-  // Summary stats
-  const totalActive = categorized.all.filter(i => 
-    i.properties?.['Engagement status']?.status?.name === 'Active' ||
-    i.properties?.['Deal stage']?.status?.name === 'Active' ||
-    (!i.properties?.['Engagement status']?.status?.name && !i.properties?.['Deal stage']?.status?.name)
-  ).length;
-  const actionItemsCount = categorized.overdue.length + categorized.dueToday.length;
-  
-  html += `
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-value">${categorized.all.length}</div>
-        <div class="stat-label">TOTAL INVESTMENTS</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${totalActive}</div>
-        <div class="stat-label">ACTIVE</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">${actionItemsCount}</div>
-        <div class="stat-label">ACTION ITEMS</div>
-      </div>
-    </div>
-  `;
 
   // Overdue items
   if (categorized.overdue.length > 0) {
     html += `
-      <h2>🚨 Overdue Actions (${categorized.overdue.length})</h2>
-      <div class="alert">These items need immediate attention!</div>
+        <div class="section">
+          <h2 class="section-title">
+            🚨 Overdue Actions
+            <span class="count overdue-count">${categorized.overdue.length}</span>
+          </h2>
     `;
     categorized.overdue.forEach(item => {
       const daysOverdue = daysSince(item.nextActionDate);
       html += `
-        <div class="item">
-          <div class="company">${item.companyName} <span class="overdue">(${daysOverdue} days overdue)</span></div>
-          <div class="action">📌 ${item.nextAction}</div>
-          <div style="color: #666; font-size: 14px; margin-top: 3px;">📞 Contact: ${item.poc} | 📅 Due: ${formatDate(item.nextActionDate)}</div>
-          <div style="margin-top: 5px;">
-            <a href="${item.url}" target="_blank">View in Notion →</a>
+          <div class="company-item ${getDealStageClass(item.dealStage)}">
+            <div class="company-header">
+              <h3 class="company-name">${item.companyName}</h3>
+              <span class="overdue-badge">${daysOverdue} days overdue</span>
+            </div>
+            <div class="action-text"><strong>Next action:</strong> ${item.nextAction}</div>
+            <div class="meta-info">
+              <div class="meta-item">📞 <span class="meta-label">Contact:</span> ${item.poc}</div>
+              <div class="meta-item">📅 <span class="meta-label">Due:</span> ${formatDate(item.nextActionDate)}</div>
+              <div class="meta-item">📈 <span class="meta-label">Deal:</span> ${item.dealStage}</div>
+              <div class="meta-item">🔄 <span class="meta-label">Status:</span> ${item.engagementStatus}</div>
+              <a href="${item.url}" target="_blank" class="view-link">View in Notion →</a>
+            </div>
           </div>
-        </div>
       `;
     });
+    html += `</div>`;
   }
 
   // Due today
   if (categorized.dueToday.length > 0) {
     html += `
-      <h2>📅 Due Today (${categorized.dueToday.length})</h2>
+        <div class="section">
+          <h2 class="section-title">
+            📅 Due Today
+            <span class="count today-count">${categorized.dueToday.length}</span>
+          </h2>
     `;
     categorized.dueToday.forEach(item => {
       html += `
-        <div class="item">
-          <div class="company">${item.companyName}</div>
-          <div class="action">📌 ${item.nextAction}</div>
-          <div style="color: #666; font-size: 14px; margin-top: 3px;">📞 Contact: ${item.poc} | 📅 Due: Today</div>
-          <div style="margin-top: 5px;">
-            <a href="${item.url}" target="_blank">View in Notion →</a>
+          <div class="company-item ${getDealStageClass(item.dealStage)}">
+            <div class="company-header">
+              <h3 class="company-name">${item.companyName}</h3>
+            </div>
+            <div class="action-text"><strong>Next action:</strong> ${item.nextAction}</div>
+            <div class="meta-info">
+              <div class="meta-item">📞 ${item.poc}</div>
+              <div class="meta-item">📅 <span class="meta-label">Due:</span> Today</div>
+              <div class="meta-item">📈 ${item.dealStage}</div>
+              <div class="meta-item">🔄 ${item.engagementStatus}</div>
+              <a href="${item.url}" target="_blank" class="view-link">View in Notion →</a>
+            </div>
           </div>
-        </div>
       `;
     });
+    html += `</div>`;
   }
 
   // This week
   if (categorized.thisWeek.length > 0) {
     html += `
-      <h2>📆 This Week (${categorized.thisWeek.length})</h2>
+        <div class="section">
+          <h2 class="section-title">
+            📆 This Week
+            <span class="count">${categorized.thisWeek.length}</span>
+          </h2>
     `;
     categorized.thisWeek.forEach(item => {
       html += `
-        <div class="item">
-          <div class="company">${item.companyName}</div>
-          <div class="action">📌 ${item.nextAction}</div>
-          <div style="color: #666; font-size: 14px; margin-top: 3px;">📞 Contact: ${item.poc} | 📅 Due: ${formatDate(item.nextActionDate)}</div>
-        </div>
+          <div class="company-item ${getDealStageClass(item.dealStage)}">
+            <div class="company-header">
+              <h3 class="company-name">${item.companyName}</h3>
+            </div>
+            <div class="action-text"><strong>Next action:</strong> ${item.nextAction}</div>
+            <div class="meta-info">
+              <div class="meta-item">📞 <span class="meta-label">Contact:</span> ${item.poc}</div>
+              <div class="meta-item">📅 <span class="meta-label">Due:</span> ${formatDate(item.nextActionDate)}</div>
+              <div class="meta-item">📈 <span class="meta-label">Deal:</span> ${item.dealStage}</div>
+              <div class="meta-item">🔄 <span class="meta-label">Status:</span> ${item.engagementStatus}</div>
+              <a href="${item.url}" target="_blank" class="view-link">View in Notion →</a>
+            </div>
+          </div>
       `;
     });
+    html += `</div>`;
   }
 
   // Upcoming this month
   if (categorized.thisMonth.length > 0) {
     html += `
-      <h2>📊 Upcoming This Month (${categorized.thisMonth.length})</h2>
-      <div class="info">Items scheduled in the next 30 days</div>
+        <div class="section">
+          <h2 class="section-title">
+            📊 This Month
+            <span class="count">${categorized.thisMonth.length}</span>
+          </h2>
     `;
     // Show first 5 only
     categorized.thisMonth.slice(0, 5).forEach(item => {
       html += `
-        <div class="item">
-          <div class="company">${item.companyName}</div>
-          <div class="action">📌 ${item.nextAction}</div>
-          <div style="color: #666; font-size: 14px; margin-top: 3px;">📞 Contact: ${item.poc} | 📅 Due: ${formatDate(item.nextActionDate)}</div>
-        </div>
+          <div class="company-item ${getDealStageClass(item.dealStage)}">
+            <div class="company-header">
+              <h3 class="company-name">${item.companyName}</h3>
+            </div>
+            <div class="action-text"><strong>Next action:</strong> ${item.nextAction}</div>
+            <div class="meta-info">
+              <div class="meta-item">📞 <span class="meta-label">Contact:</span> ${item.poc}</div>
+              <div class="meta-item">📅 <span class="meta-label">Due:</span> ${formatDate(item.nextActionDate)}</div>
+              <div class="meta-item">📈 <span class="meta-label">Deal:</span> ${item.dealStage}</div>
+              <div class="meta-item">🔄 <span class="meta-label">Status:</span> ${item.engagementStatus}</div>
+              <a href="${item.url}" target="_blank" class="view-link">View in Notion →</a>
+            </div>
+          </div>
       `;
     });
     
     if (categorized.thisMonth.length > 5) {
-      html += `<p style="color: #7f8c8d; text-align: center;">... and ${categorized.thisMonth.length - 5} more</p>`;
+      html += `<p style="color: #6b7280; text-align: center; margin-top: 16px;">... and ${categorized.thisMonth.length - 5} more</p>`;
     }
+    html += `</div>`;
   }
 
   // No actions message
+  const actionItemsCount = categorized.overdue.length + categorized.dueToday.length;
   if (actionItemsCount === 0 && categorized.thisWeek.length === 0) {
     html += `
-      <div class="info" style="margin-top: 30px; text-align: center;">
-        <h3>✅ All Clear!</h3>
-        <p>No immediate action items. Enjoy your day!</p>
-      </div>
+        <div class="empty-state">
+          <h3>✅ All Clear!</h3>
+          <p>No immediate action items. Enjoy your day!</p>
+        </div>
     `;
   }
 
   html += `
-        <hr style="margin-top: 40px; border: none; border-top: 1px solid #ecf0f1;">
-        <p style="color: #7f8c8d; font-size: 12px; text-align: center;">
-          This report was automatically generated from your Notion database.<br>
-          <a href="https://notion.so/${DATABASE_ID}" target="_blank">View Full Database</a>
-        </p>
+        <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #e5e7eb; text-align: center;">
+          <p style="color: #6b7280; font-size: 13px; margin: 0;">
+            Generated from your <a href="https://notion.so/${DATABASE_ID}" target="_blank" style="color: #3b82f6;">Notion database</a>
+          </p>
+        </div>
       </div>
     </body>
     </html>
