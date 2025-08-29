@@ -342,22 +342,27 @@ function generateEmailHTML(categorized) {
           .overdue-badge {
             align-self: flex-start;
           }
-          .meta-info {
-            gap: 8px;
-          }
-          .meta-item {
-            min-width: 0;
-            flex-shrink: 1;
-          }
           .company-name {
             font-size: 15px;
           }
           .action-text {
             font-size: 13px;
           }
+          .meta-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+          }
+          .view-link {
+            grid-column: 1 / -1;
+            justify-self: start;
+            margin-top: 4px;
+          }
         }
         @media (max-width: 480px) {
           .meta-info {
+            display: flex;
             flex-direction: column;
             gap: 6px;
             align-items: flex-start;
@@ -365,6 +370,9 @@ function generateEmailHTML(categorized) {
           .meta-item {
             width: 100%;
             justify-content: flex-start;
+          }
+          .view-link {
+            margin-top: 8px;
           }
         }
         .view-link {
